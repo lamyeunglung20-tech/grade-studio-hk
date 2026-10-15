@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { analyze, boundsForNewExam, compareExams, CUMULATIVE_LEVELS, cumulativeGradeCounts, EMPTY, LEVELS, moveExam, normalizeEmail, parseNames, rankStudentRows, summarizeStudentExams, validDocument, validEmail, withoutClass, withoutExam, type ClassRoom, type Document, type Exam } from "../lib/grade";
 import { downloadStudentTrendPdf } from "../lib/pdf-student-download";
+import { RevisionConflictError, type GradeBackend } from "../lib/grade-backend";
 
 const uid = () => crypto.randomUUID();
 const makeExam = (klass: ClassRoom, name = "新考試"): Exam => ({ id: uid(), classId: klass.id, name, bounds: boundsForNewExam(klass), scores: {} });
@@ -102,10 +103,10 @@ function StudentHistoryChart({ summary, metric }: { summary: ReturnType<typeof s
   </svg></div>;
 }
 
-type Props = { displayName: string; userId: string; signOutPath: string; googleToken?: () => Promise<string>; onGoogleSignIn?: () => Promise<void>; onGoogleSignOut?: () => Promise<void> };
+type Props = { displayName: string; userId: string; signOutPath: string; googleToken?: () => Promise<string>; onGoogleSignIn?: () => Promise<void>; onGoogleSignOut?: () => Promise<void>; backend?: GradeBackend };
 type SaveState = "loading" | "saved" | "saving" | "error" | "conflict";
 
-export default function Studio({ displayName, userId, signOutPath, googleToken, onGoogleSignIn, onGoogleSignOut }: Props) {
+export default function Studio({ displayName, userId, signOutPath, googleToken, onGoogleSignIn, onGoogleSignOut, backend }: Props) {
   const [doc, setDoc] = useState<Document>(EMPTY);
   const [classId, setClassId] = useState("");
   const [examId, setExamId] = useState("");
@@ -155,20 +156,29 @@ export default function Studio({ displayName, userId, signOutPath, googleToken, 
       const save = (async (): Promise<boolean> => {
         setStatus("saving");
         try {
-          const body = JSON.stringify({ revision: revisionRef.current, document: snapshot });
-          const token = googleToken ? await googleToken() : null;
-          const response = await fetch("/api/document", { method: "PUT", credentials: "same-origin", keepalive: new Blob([body]).size < 60_000, headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body });
-          const result = await response.json() as { revision?: number; error?: string };
-          if (response.status === 409) { blockedRef.current = true; setStatus("conflict"); setMessage("這份資料已在另一分頁更新。請先下載目前內容，再重新載入最新版本。"); return false; }
-          if (!response.ok) throw new Error(result.error || "儲存失敗");
-          revisionRef.current = result.revision!;
+          let nextRevision: number;
+          if (backend) {
+            nextRevision = (await backend.saveDocument(revisionRef.current, snapshot)).revision;
+          } else {
+            const body = JSON.stringify({ revision: revisionRef.current, document: snapshot });
+            const token = googleToken ? await googleToken() : null;
+            const response = await fetch("/api/document", { method: "PUT", credentials: "same-origin", keepalive: new Blob([body]).size < 60_000, headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body });
+            const result = await response.json() as { revision?: number; error?: string };
+            if (response.status === 409) throw new RevisionConflictError();
+            if (!response.ok) throw new Error(result.error || "儲存失敗");
+            nextRevision = result.revision!;
+          }
+          revisionRef.current = nextRevision;
           if (pendingLegacyRef.current?.every(id => snapshot.classes.some(c => c.id === id))) {
             try { localStorage.setItem(`grade-cloud-imported-${userId}`, "yes"); } catch { /* Cloud save still succeeded. */ }
             pendingLegacyRef.current = null;
           }
           if (currentRef.current === snapshot) { dirtyRef.current = false; setStatus("saved"); setMessage(""); }
           return true;
-        } catch (error) { setStatus("error"); setMessage(error instanceof Error ? error.message : "無法連接雲端，請重試"); return false; }
+        } catch (error) {
+          if (error instanceof RevisionConflictError) { blockedRef.current = true; setStatus("conflict"); setMessage("這份資料已在另一分頁更新。請先下載目前內容，再重新載入最新版本。"); return false; }
+          setStatus("error"); setMessage(error instanceof Error ? error.message : "無法連接雲端，請重試"); return false;
+        }
       })();
       savingRef.current = save;
       const saved = await save;
@@ -176,7 +186,7 @@ export default function Studio({ displayName, userId, signOutPath, googleToken, 
       if (!saved) return false;
     }
     return false;
-  }, [userId, googleToken]);
+  }, [userId, googleToken, backend]);
   const change = useCallback((fn: (next: Document) => void): boolean => {
     if (blockedRef.current) { setStatus("conflict"); return false; }
     const next = structuredClone(currentRef.current);
@@ -190,10 +200,11 @@ export default function Studio({ displayName, userId, signOutPath, googleToken, 
 
   useEffect(() => {
     let cancelled = false;
-    (googleToken ? googleToken() : Promise.resolve(null)).then(token => fetch("/api/document", { cache: "no-store", credentials: "same-origin", headers: token ? { Authorization: `Bearer ${token}` } : {} })).then(async r => {
+    const request = backend ? backend.loadDocument() : (googleToken ? googleToken() : Promise.resolve(null)).then(token => fetch("/api/document", { cache: "no-store", credentials: "same-origin", headers: token ? { Authorization: `Bearer ${token}` } : {} })).then(async r => {
       if (!r.ok) throw new Error(r.status === 401 ? "登入已逾時，請重新登入。" : "未能讀取雲端資料");
       return await r.json() as { revision: number; document: unknown; legacyDocument?: unknown };
-    }).then(result => {
+    });
+    request.then(result => {
       if (cancelled) return;
       if (!validDocument(result.document)) throw new Error("雲端資料格式不正確");
       const loaded = result.document;
@@ -204,7 +215,7 @@ export default function Studio({ displayName, userId, signOutPath, googleToken, 
       else if (!localStorage.getItem(`grade-cloud-imported-${userId}`)) setLegacy(legacyData());
     }).catch(error => { if (!cancelled) { setStatus("error"); setMessage(error.message); } });
     return () => { cancelled = true; if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [userId, googleToken]);
+  }, [userId, googleToken, backend]);
 
   useEffect(() => {
     const saveWhenHidden = () => { if (document.visibilityState === "hidden" && dirtyRef.current) void flush(); };

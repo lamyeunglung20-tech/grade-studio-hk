@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { LEVELS, summarizeStudentRecords, type recordsForEmail } from "../lib/grade";
 import { downloadStudentTrendPdf } from "../lib/pdf-student-download";
+import type { GradeBackend } from "../lib/grade-backend";
 
 type StudentData = ReturnType<typeof recordsForEmail>;
-type Props = { displayName: string; email: string; getGoogleToken: () => Promise<string>; onSignOut: () => Promise<void> };
+type Props = { displayName: string; email: string; getGoogleToken: () => Promise<string>; onSignOut: () => Promise<void>; backend?: GradeBackend };
 
 function ScoreTrend({ records }: { records: StudentData["records"] }) {
   const valid = records.filter(record => record.value !== null);
@@ -22,7 +23,7 @@ function ScoreTrend({ records }: { records: StudentData["records"] }) {
   </svg><div className="chart-caption"><span>{valid[0].examName}</span><span>按考試建立順序 · 缺考不計算</span><span>{valid[valid.length - 1].examName}</span></div></div>;
 }
 
-export default function StudentPortal({ displayName, email, getGoogleToken, onSignOut }: Props) {
+export default function StudentPortal({ displayName, email, getGoogleToken, onSignOut, backend }: Props) {
   const [data, setData] = useState<StudentData | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -31,14 +32,17 @@ export default function StudentPortal({ displayName, email, getGoogleToken, onSi
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const token = await getGoogleToken();
-      const response = await fetch("/api/student", { cache: "no-store", headers: { Authorization: `Bearer ${token}` } });
-      const result = await response.json() as StudentData & { error?: string };
-      if (!response.ok) throw new Error(result.error || "讀取成績失敗");
-      setData(result as StudentData);
+      if (backend) setData(await backend.loadStudent(email));
+      else {
+        const token = await getGoogleToken();
+        const response = await fetch("/api/student", { cache: "no-store", headers: { Authorization: `Bearer ${token}` } });
+        const result = await response.json() as StudentData & { error?: string };
+        if (!response.ok) throw new Error(result.error || "讀取成績失敗");
+        setData(result as StudentData);
+      }
     } catch (cause) { setError(cause instanceof Error ? cause.message : "讀取成績失敗"); }
     finally { setLoading(false); }
-  }, [getGoogleToken]);
+  }, [getGoogleToken, backend, email]);
 
   useEffect(() => { queueMicrotask(() => void load()); }, [load]);
   const valid = data?.records.filter(record => record.value !== null) ?? [];
