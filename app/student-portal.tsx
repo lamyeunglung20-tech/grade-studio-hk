@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import type { recordsForEmail } from "../lib/grade";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { LEVELS, summarizeStudentRecords, type recordsForEmail } from "../lib/grade";
+import { downloadStudentTrendPdf } from "../lib/pdf-student-download";
 
 type StudentData = ReturnType<typeof recordsForEmail>;
 type Props = { displayName: string; email: string; getGoogleToken: () => Promise<string>; onSignOut: () => Promise<void> };
@@ -25,6 +26,8 @@ export default function StudentPortal({ displayName, email, getGoogleToken, onSi
   const [data, setData] = useState<StudentData | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [pdfExporting, setPdfExporting] = useState(false);
+  const [pdfError, setPdfError] = useState("");
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
@@ -42,11 +45,27 @@ export default function StudentPortal({ displayName, email, getGoogleToken, onSi
   const average = valid.length ? valid.reduce((sum, record) => sum + record.value!, 0) / valid.length : null;
   const highest = valid.length ? Math.max(...valid.map(record => record.value!)) : null;
   const latest = valid.at(-1)?.value ?? null;
+  const trendSummary = useMemo(() => summarizeStudentRecords((data?.records ?? []).map((record, index) => {
+    const gradeIndex = LEVELS.findIndex(level => level === record.grade);
+    return { id: String(index), name: record.examName, className: record.className, kind: record.kind, score: record.value, grade: record.grade, gradeIndex: gradeIndex < 0 ? null : gradeIndex };
+  })), [data]);
+
+  async function exportPdf() {
+    if (!data?.linked || pdfExporting) return;
+    setPdfExporting(true); setPdfError("");
+    try {
+      const studentName = data.records[0]?.studentName || displayName;
+      const classes = [...new Set(data.records.map(record => record.className))];
+      await downloadStudentTrendPdf(studentName, classes.join("、") || "我的考試", trendSummary);
+    } catch (cause) { setPdfError(cause instanceof Error ? `PDF 下載失敗：${cause.message}` : "PDF 下載失敗，請重試。"); }
+    finally { setPdfExporting(false); }
+  }
 
   return <div className="app-shell student-portal">
     <header className="topbar"><div className="identity"><span className="logo mini">▥</span><div><strong>成績分析室</strong><small>GRADE STUDIO</small></div></div><div className="account"><span className="account-name">{displayName}</span><button className="logout-button" onClick={() => void onSignOut()}>登出</button></div></header>
     <main className="content">
-      <div className="page-top"><div><p className="eyebrow">我的成績</p><h1>考試紀錄與成績趨勢</h1><p>以 Google 帳戶 {email} 查閱。只有與這個電郵相符的成績會顯示。</p></div><button className="button outline" onClick={() => void load()} disabled={loading}>重新整理</button></div>
+      <div className="page-top"><div><p className="eyebrow">我的成績</p><h1>考試紀錄與成績趨勢</h1><p>以 Google 帳戶 {email} 查閱。只有與這個電郵相符的成績會顯示。</p></div><div className="student-page-actions">{data?.linked && <button className="button primary" onClick={() => void exportPdf()} disabled={loading || pdfExporting} aria-busy={pdfExporting}>{pdfExporting ? "正在製作 PDF…" : "下載我的趨勢 PDF"}</button>}<button className="button outline" onClick={() => void load()} disabled={loading}>重新整理</button></div></div>
+      {pdfError && <div className="notice warn" role="alert">{pdfError}</div>}
       {loading ? <section className="panel student-empty">正在讀取你的成績…</section> : error ? <section className="panel student-empty"><h2>暫時無法讀取</h2><p>{error}</p><button className="button outline" onClick={() => void load()}>重試</button></section> : !data?.linked ? <section className="panel student-empty"><h2>尚未找到你的成績</h2><p>請老師在學生名單中填入你的 Google 帳戶電郵：{email}</p></section> : <>
         <section className="student-metrics"><div className="panel"><span>考試紀錄</span><strong>{data.records.length}</strong></div><div className="panel"><span>平均分</span><strong>{average === null ? "—" : average.toFixed(2)}</strong></div><div className="panel"><span>最高分</span><strong>{highest === null ? "—" : highest}</strong></div><div className="panel"><span>最近分數</span><strong>{latest === null ? "—" : latest}</strong></div></section>
         <section className="panel student-section"><p className="eyebrow">分數變化</p><h2>整體成績趨勢</h2><ScoreTrend records={data.records}/></section>

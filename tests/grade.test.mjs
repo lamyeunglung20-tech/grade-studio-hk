@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { analyze, boundsForNewExam, compareExams, cumulativeGradeCounts, gradeConfig, moveExam, parseNames, parseScore, rankStudentRows, recordsForEmail, summarizeStudentExams, validDocument, withoutClass, withoutExam } from "../lib/grade.ts";
+import { analyze, boundsForNewExam, compareExams, cumulativeGradeCounts, gradeConfig, LEVELS, moveExam, parseNames, parseScore, rankStudentRows, recordsForEmail, summarizeStudentExams, summarizeStudentRecords, validDocument, withoutClass, withoutExam } from "../lib/grade.ts";
 import { isAdmin, isStudent } from "../lib/access.ts";
 
 test("score parsing rejects out-of-range and malformed entries", () => {
@@ -46,6 +46,11 @@ test("student email links expose only that student's exam records", () => {
   assert.equal(recordsForEmail(document, "Student@Gmail.com").records.length, 1);
   assert.equal(recordsForEmail(document, "student@gmail.com").records[0].score, "89.5");
   assert.equal(recordsForEmail(document, "student@gmail.com").records[0].gapPercent, 2.5);
+  const ownRecords = recordsForEmail(document, "student@gmail.com").records;
+  const ownSummary = summarizeStudentRecords(ownRecords.map((record, index) => ({ id: String(index), name: record.examName, kind: record.kind, score: record.value, grade: record.grade, gradeIndex: LEVELS.indexOf(record.grade) })));
+  assert.equal(ownSummary.average, 89.5);
+  assert.deepEqual(ownSummary.overall, { lower: "5*", upper: "5*", examCount: 1 });
+  assert.equal(ownSummary.records.some(record => record.score === 30), false);
   assert.deepEqual(recordsForEmail(document, "unknown@gmail.com"), { linked: false, records: [] });
   document.classes[0].students[1].email = "STUDENT@gmail.com";
   assert.equal(validDocument(document), false);

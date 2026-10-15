@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { analyze, boundsForNewExam, compareExams, CUMULATIVE_LEVELS, cumulativeGradeCounts, EMPTY, LEVELS, moveExam, normalizeEmail, parseNames, rankStudentRows, summarizeStudentExams, validDocument, validEmail, withoutClass, withoutExam, type ClassRoom, type Document, type Exam } from "../lib/grade";
+import { downloadStudentTrendPdf } from "../lib/pdf-student-download";
 
 const uid = () => crypto.randomUUID();
 const makeExam = (klass: ClassRoom, name = "新考試"): Exam => ({ id: uid(), classId: klass.id, name, bounds: boundsForNewExam(klass), scores: {} });
@@ -118,6 +119,7 @@ export default function Studio({ displayName, userId, signOutPath, googleToken, 
   const [emailDrafts, setEmailDrafts] = useState<Record<string, string>>({});
   const [manualSaving, setManualSaving] = useState(false);
   const [pdfExporting, setPdfExporting] = useState(false);
+  const [studentPdfExporting, setStudentPdfExporting] = useState(false);
   const [scorePaste, setScorePaste] = useState("");
   const [scoreOrder, setScoreOrder] = useState<"roster" | "rank">("roster");
   const [rankOrderWhileEditing, setRankOrderWhileEditing] = useState<string[] | null>(null);
@@ -364,6 +366,19 @@ export default function Studio({ displayName, userId, signOutPath, googleToken, 
       setMessage(error instanceof Error ? `PDF 下載失敗：${error.message}` : "PDF 下載失敗，請重試。");
     } finally { setPdfExporting(false); }
   }
+  async function exportStudentPdf() {
+    if (!klass || !selectedStudent || studentPdfExporting) return;
+    setStudentPdfExporting(true);
+    try {
+      await downloadStudentTrendPdf(selectedStudent.name, klass.name, {
+        ...studentAnalysis,
+        records: studentAnalysis.records.map(record => ({ ...record, className: klass.name })),
+      });
+      setMessage("學生趨勢 PDF 已下載。");
+    } catch (error) {
+      setMessage(error instanceof Error ? `學生趨勢 PDF 下載失敗：${error.message}` : "學生趨勢 PDF 下載失敗，請重試。");
+    } finally { setStudentPdfExporting(false); }
+  }
   async function loadBackup(file: File) {
     if (file.size > 1_500_000) { setMessage("備份檔案過大，請選擇本 App 的 JSON 備份。"); return; }
     try {
@@ -399,7 +414,7 @@ export default function Studio({ displayName, userId, signOutPath, googleToken, 
     {selectedStudent ? <>
       <div className="student-analysis-summary"><div><span>多次考試平均分</span><strong>{studentAnalysis.average === null ? "—" : studentAnalysis.average.toFixed(2)}</strong><small>{studentAnalysis.scoreCount} 次有效分數</small></div><div><span>總預測等級</span><strong>{overallGrade}</strong><small>{studentAnalysis.gradedCount} 次有預測等級</small></div></div>
       <p className="student-analysis-note">總預測取最近最多 5 次有分數及已設定 grading 的考試，較近期考試權重較高；落在兩級之間便顯示等級範圍。平均分計算所有有效分數，缺考不計。</p>
-      <div className="student-analysis-chart-head"><h3>{selectedStudent.name}的考試趨勢</h3><div className="segmented" aria-label="學生趨勢指標"><button className={studentAnalysisView === "score" ? "selected" : ""} onClick={() => setStudentAnalysisView("score")}>分數</button><button className={studentAnalysisView === "grade" ? "selected" : ""} onClick={() => setStudentAnalysisView("grade")}>預測等級</button></div></div>
+      <div className="student-analysis-chart-head"><h3>{selectedStudent.name}的考試趨勢</h3><div className="student-analysis-chart-actions"><button className="button outline" onClick={() => void exportStudentPdf()} disabled={studentPdfExporting} aria-busy={studentPdfExporting}>{studentPdfExporting ? "正在製作 PDF…" : "下載學生趨勢 PDF"}</button><div className="segmented" aria-label="學生趨勢指標"><button className={studentAnalysisView === "score" ? "selected" : ""} onClick={() => setStudentAnalysisView("score")}>分數</button><button className={studentAnalysisView === "grade" ? "selected" : ""} onClick={() => setStudentAnalysisView("grade")}>預測等級</button></div></div></div>
       {studentAnalysis.records.length ? <><StudentHistoryChart summary={studentAnalysis} metric={studentAnalysisView}/><div className="student-analysis-table"><table><thead><tr><th>考試</th><th>分數</th><th>預測等級</th></tr></thead><tbody>{studentAnalysis.records.map(record => <tr key={record.id}><td>{record.name}</td><td>{record.kind === "abs" ? "ABS 缺考" : record.kind === "blank" ? "未填" : record.kind === "invalid" ? "分數無效" : record.score}</td><td>{record.gradeIndex !== null ? showLevel(record.grade) : record.kind === "valid" ? "待設定" : "—"}</td></tr>)}</tbody></table></div></> : <p className="help">此班別尚未建立考試。</p>}
     </> : <p className="help">搜尋並選擇一位學生，查看他的考試紀錄與綜合預測。</p>}
   </div>;

@@ -21,6 +21,7 @@
 .student-metrics>div:first-child span{color:#cee3d0}
 .student-metrics strong{display:block;font-size:27px;font-weight:600;margin-top:11px}
 .student-section{padding:22px;margin-bottom:18px}
+.student-page-actions{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
 .student-section h2{font-size:19px;margin:0 0 18px}
 .student-chart svg{display:block;width:100%;height:auto;max-height:250px}
 .chart-caption{display:flex;justify-content:space-between;gap:12px;color:var(--muted);font-size:11px;margin-top:3px}
@@ -82,6 +83,7 @@
 .student-analysis-summary strong{display:block;margin:6px 0;font-size:23px;color:var(--green)}
 .student-analysis-note{font-size:11px;line-height:1.7;color:var(--muted);margin:13px 0 18px}
 .student-analysis-chart-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.student-analysis-chart-actions{display:flex;align-items:center;flex-wrap:wrap;gap:9px}
 .student-analysis-chart-head h3{margin:0;font-size:15px}
 .student-history-chart{max-width:100%;overflow-x:auto;border-bottom:1px solid var(--line);padding-top:13px}
 .student-history-chart svg{display:block;max-width:none}

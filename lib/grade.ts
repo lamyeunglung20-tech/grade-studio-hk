@@ -97,13 +97,9 @@ export function compareExams(klass: ClassRoom | undefined, exams: Exam[]) {
   });
 }
 
-export function summarizeStudentExams(klass: ClassRoom | undefined, exams: Exam[], studentId: string) {
-  const student = klass?.students.find(item => item.id === studentId);
-  const records = student && klass ? exams.filter(exam => exam.classId === klass.id).map(exam => {
-    const row = analyze({ ...klass, students: [student] }, exam).detail[0];
-    const index = LEVELS.findIndex(level => level === row.grade);
-    return { id: exam.id, name: exam.name, kind: row.kind, score: row.value, grade: row.grade, gradeIndex: index < 0 ? null : index };
-  }) : [];
+export type StudentTrendRecord = { id: string; name: string; kind: ReturnType<typeof parseScore>["kind"]; score: number | null; grade: string; gradeIndex: number | null; className?: string };
+
+export function summarizeStudentRecords(records: StudentTrendRecord[]) {
   const scores = records.flatMap(record => record.score === null ? [] : [record.score]);
   const graded = records.filter((record): record is typeof record & { gradeIndex: number } => record.gradeIndex !== null);
   const recent = graded.slice(-5);
@@ -115,6 +111,16 @@ export function summarizeStudentExams(klass: ClassRoom | undefined, exams: Exam[
     examCount: recent.length,
   };
   return { records, average: scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : null, scoreCount: scores.length, gradedCount: graded.length, overall };
+}
+
+export function summarizeStudentExams(klass: ClassRoom | undefined, exams: Exam[], studentId: string) {
+  const student = klass?.students.find(item => item.id === studentId);
+  const records = student && klass ? exams.filter(exam => exam.classId === klass.id).map(exam => {
+    const row = analyze({ ...klass, students: [student] }, exam).detail[0];
+    const index = LEVELS.findIndex(level => level === row.grade);
+    return { id: exam.id, name: exam.name, kind: row.kind, score: row.value, grade: row.grade, gradeIndex: index < 0 ? null : index };
+  }) : [];
+  return summarizeStudentRecords(records);
 }
 
 export function withoutClass(document: Document, classId: string): Document {
