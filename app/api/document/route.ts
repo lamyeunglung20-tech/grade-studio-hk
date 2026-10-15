@@ -52,14 +52,18 @@ export async function PUT(request: Request) {
   const { revision, document } = input as { revision: unknown; document: unknown };
   if (!Number.isSafeInteger(revision) || (revision as number) < 0 || !validDocument(document)) return json({ error: "資料格式不正確" }, 400);
   const now = Date.now();
-  // Preserve email links when an already-open older app saves a roster without the new field.
+  // Preserve fields omitted by already-open older app versions.
   const current = await env.DB!.prepare("SELECT payload FROM owner_documents WHERE owner_id = ?").bind(ADMIN_OWNER_ID).first<{ payload: string }>();
   if (current) {
     try {
       const existing = JSON.parse(current.payload);
       if (validDocument(existing)) {
         const emails = new Map(existing.classes.flatMap(klass => klass.students.filter(student => student.email).map(student => [student.id, student.email!] as const)));
-        for (const klass of (document as typeof existing).classes) for (const student of klass.students) if (student.email === undefined && emails.has(student.id)) student.email = emails.get(student.id);
+        const defaults = new Map(existing.classes.filter(klass => klass.gradingDefault !== undefined).map(klass => [klass.id, klass.gradingDefault!] as const));
+        for (const klass of (document as typeof existing).classes) {
+          if (klass.gradingDefault === undefined && defaults.has(klass.id)) klass.gradingDefault = defaults.get(klass.id);
+          for (const student of klass.students) if (student.email === undefined && emails.has(student.id)) student.email = emails.get(student.id);
+        }
       }
     } catch { /* Keep the validated incoming document. */ }
   }

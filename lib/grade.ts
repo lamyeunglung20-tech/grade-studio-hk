@@ -1,7 +1,7 @@
 export const LEVELS = ["U", "1", "2", "3", "4", "5", "5*", "5**"] as const;
 export const CUMULATIVE_LEVELS = ["U", "1+", "2+", "3+", "4+", "5+", "5*+", "5**"] as const;
 export type Student = { id: string; name: string; email?: string };
-export type ClassRoom = { id: string; name: string; students: Student[] };
+export type ClassRoom = { id: string; name: string; students: Student[]; gradingDefault?: string[] };
 export type Exam = { id: string; classId: string; name: string; bounds: string[]; scores: Record<string, string> };
 export type Document = { classes: ClassRoom[]; exams: Exam[] };
 export const EMPTY: Document = { classes: [], exams: [] };
@@ -32,6 +32,12 @@ export function gradeConfig(bounds: string[]) {
   if (values[0] !== 0) return { ready: false, values, message: "U 須由 0 分開始" };
   if (values.some((v, i) => i > 0 && v <= values[i - 1])) return { ready: false, values, message: "分界須由低至高，不可重複" };
   return { ready: true, values, message: "分界已設定" };
+}
+
+export function boundsForNewExam(klass: ClassRoom): string[] {
+  return klass.gradingDefault?.length === 8 && gradeConfig(klass.gradingDefault).ready
+    ? [...klass.gradingDefault]
+    : ["0", "", "", "", "", "", "", ""];
 }
 
 export function analyze(klass: ClassRoom | undefined, exam: Exam | undefined) {
@@ -139,6 +145,10 @@ export function validDocument(input: unknown): input is Document {
   const classIds = new Set<string>(), examIds = new Set<string>(), studentIds = new Set<string>();
   for (const klass of input.classes) {
     if (!isRecord(klass) || !isShort(klass.id, 80) || !klass.id || !isShort(klass.name, 100) || !klass.name.trim() || !Array.isArray(klass.students) || klass.students.length > 5000 || classIds.has(klass.id)) return false;
+    if (klass.gradingDefault !== undefined &&
+      (!Array.isArray(klass.gradingDefault) ||
+       (klass.gradingDefault.length !== 0 &&
+        (klass.gradingDefault.length !== 8 || klass.gradingDefault.some((value: unknown) => !isShort(value, 30)) || !gradeConfig(klass.gradingDefault).ready)))) return false;
     classIds.add(klass.id);
     const classEmails = new Set<string>();
     for (const student of klass.students) {

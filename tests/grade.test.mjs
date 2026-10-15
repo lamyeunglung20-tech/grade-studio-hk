@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { analyze, compareExams, cumulativeGradeCounts, gradeConfig, moveExam, parseNames, parseScore, rankStudentRows, recordsForEmail, summarizeStudentExams, validDocument, withoutClass, withoutExam } from "../lib/grade.ts";
+import { analyze, boundsForNewExam, compareExams, cumulativeGradeCounts, gradeConfig, moveExam, parseNames, parseScore, rankStudentRows, recordsForEmail, summarizeStudentExams, validDocument, withoutClass, withoutExam } from "../lib/grade.ts";
 import { isAdmin, isStudent } from "../lib/access.ts";
 
 test("score parsing rejects out-of-range and malformed entries", () => {
@@ -161,4 +161,18 @@ test("class roster is reusable across exams and isolated from other classes", ()
   document.exams[1].scores.s2 = "80";
   assert.equal(validDocument(document), false);
   assert.deepEqual(parseNames("陳同學\n\n李同學"), ["陳同學", "李同學"]);
+});
+
+test("a class grading preset fills new exams without tying later exam edits to the preset", () => {
+  const gradingDefault = ["0", "10", "20", "35", "50", "65", "80", "92"];
+  const klass = { id: "c", name: "5A", students: [], gradingDefault };
+  const firstExamBounds = boundsForNewExam(klass);
+  assert.deepEqual(firstExamBounds, gradingDefault);
+  firstExamBounds[5] = "70";
+  assert.equal(klass.gradingDefault[5], "65");
+  assert.deepEqual(boundsForNewExam(klass), gradingDefault);
+  assert.equal(validDocument({ classes: [klass], exams: [] }), true);
+  assert.equal(validDocument({ classes: [{ ...klass, gradingDefault: ["0", "10", "20"] }], exams: [] }), false);
+  assert.equal(validDocument({ classes: [{ ...klass, gradingDefault: [] }], exams: [] }), true);
+  assert.deepEqual(boundsForNewExam({ ...klass, gradingDefault: [] }), ["0", "", "", "", "", "", "", ""]);
 });
