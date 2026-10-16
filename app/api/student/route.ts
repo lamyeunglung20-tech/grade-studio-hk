@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   if (!user) return json({ error: "請先使用 Google 登入" }, 401);
   if (!isStudent(user)) return json({ error: "請使用學生 Google 帳戶" }, 403);
   const row = await env.DB!.prepare("SELECT payload FROM owner_documents WHERE owner_id = ?").bind(ADMIN_OWNER_ID).first<{ payload: string }>();
-  if (!row) return json({ linked: false, records: [] });
+  if (!row) return json({ linked: false, studentName: "", records: [] });
   let document: unknown;
   try { document = JSON.parse(row.payload); } catch { return json({ error: "成績資料暫時無法讀取" }, 500); }
   if (!validDocument(document)) return json({ error: "成績資料暫時無法讀取" }, 500);

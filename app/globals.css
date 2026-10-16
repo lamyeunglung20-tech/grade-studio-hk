@@ -23,9 +23,15 @@
 .student-section{padding:22px;margin-bottom:18px}
 .student-page-actions{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
 .student-section h2{font-size:19px;margin:0 0 18px}
-.student-chart svg{display:block;width:100%;height:auto;max-height:250px}
-.chart-caption{display:flex;justify-content:space-between;gap:12px;color:var(--muted);font-size:11px;margin-top:3px}
-.chart-caption span:last-child{text-align:right}
+.student-trend-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px}
+.student-trend-heading h2{margin:0}
+.student-trend-heading .segmented button{font-size:12px;min-height:32px;padding:6px 12px}
+.student-chart svg{display:block;width:100%;max-width:600px;height:auto}
+.student-chart-exams{list-style:none;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:9px 0 0;padding:0}
+.student-chart-exams li{display:flex;align-items:flex-start;gap:7px;min-width:0;padding:9px;border:1px solid var(--line);border-radius:7px;font-size:11px;line-height:1.5}
+.student-chart-number{display:grid;place-items:center;flex:none;width:17px;height:17px;border-radius:50%;background:var(--green2);color:var(--green);font-weight:700}
+.student-chart-exam-name{min-width:0;flex:1;overflow-wrap:anywhere}
+.student-chart-exams strong{flex:none;color:var(--green);font-weight:700;white-space:nowrap}
 .student-records{overflow:auto}
 .student-records table{min-width:520px}
 .student-records td:first-child,.student-records th:first-child{width:auto;padding-left:9px;color:var(--ink)}
@@ -33,7 +39,7 @@
 .student-empty{padding:40px;text-align:center;color:var(--muted)}
 .student-empty h2{color:var(--ink);font-size:20px}
 @media(max-width:900px){.roster-list{grid-template-columns:1fr}}
-@media(max-width:680px){.student-portal .page-top{flex-direction:column}.student-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.student-metrics>div{padding:16px}.roster-list>div{grid-template-columns:20px minmax(80px,1fr) minmax(120px,1.35fr) 18px}}
+@media(max-width:680px){.student-portal .page-top{flex-direction:column}.student-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.student-metrics>div{padding:16px}.student-chart-exams{grid-template-columns:1fr}.roster-list>div{grid-template-columns:20px minmax(80px,1fr) minmax(120px,1.35fr) 18px}}
 .backup-link{display:block;margin:14px auto 0;border:0;background:none;color:var(--green);font-size:12px;text-decoration:underline}
 .login-card .backup-message{color:var(--green)!important;background:var(--green2);border-radius:7px;padding:10px;margin:15px 0 0!important}
 .admin-page-top{display:flex;justify-content:space-between;align-items:start;gap:16px}

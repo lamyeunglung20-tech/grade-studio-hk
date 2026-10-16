@@ -46,12 +46,14 @@ test("student email links expose only that student's exam records", () => {
   assert.equal(recordsForEmail(document, "Student@Gmail.com").records.length, 1);
   assert.equal(recordsForEmail(document, "student@gmail.com").records[0].score, "89.5");
   assert.equal(recordsForEmail(document, "student@gmail.com").records[0].gapPercent, 2.5);
+  assert.equal(recordsForEmail(document, "student@gmail.com").studentName, "陳同學");
   const ownRecords = recordsForEmail(document, "student@gmail.com").records;
   const ownSummary = summarizeStudentRecords(ownRecords.map((record, index) => ({ id: String(index), name: record.examName, kind: record.kind, score: record.value, grade: record.grade, gradeIndex: LEVELS.indexOf(record.grade) })));
   assert.equal(ownSummary.average, 89.5);
   assert.deepEqual(ownSummary.overall, { lower: "5*", upper: "5*", examCount: 1 });
   assert.equal(ownSummary.records.some(record => record.score === 30), false);
-  assert.deepEqual(recordsForEmail(document, "unknown@gmail.com"), { linked: false, records: [] });
+  assert.deepEqual(recordsForEmail(document, "unknown@gmail.com"), { linked: false, studentName: "", records: [] });
+  assert.equal(recordsForEmail({ ...document, exams: [] }, "student@gmail.com").studentName, "陳同學");
   document.classes[0].students[1].email = "STUDENT@gmail.com";
   assert.equal(validDocument(document), false);
 });

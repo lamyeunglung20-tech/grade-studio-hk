@@ -185,7 +185,7 @@ export function recordsForEmail(document: Document, email: string) {
     const row = analyze({ ...klass, students: [student] }, exam).detail[0];
     return { className: klass.name, examName: exam.name, studentName: student.name, order, score: row.raw, kind: row.kind, band: row.band, grade: row.grade, nextLevel: row.nextLevel, gapPercent: row.gapPercent, value: row.value };
   }));
-  return { linked: matches.length > 0, records };
+  return { linked: matches.length > 0, studentName: matches[0]?.student.name ?? "", records };
 }
 
 export function parseNames(text: string) {

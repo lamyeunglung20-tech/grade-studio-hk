@@ -61,7 +61,7 @@ export function createFirebaseGradeBackend(app: FirebaseApp): GradeBackend {
 
     async loadStudent(email) {
       const snapshot = await getDoc(studentRef(database, normalizeEmail(email)));
-      if (!snapshot.exists()) return { linked: false, records: [] };
+      if (!snapshot.exists()) return { linked: false, studentName: "", records: [] };
       const parsed: StudentData = JSON.parse(snapshot.data().dataJson);
       if (typeof parsed?.linked !== "boolean" || !Array.isArray(parsed.records)) throw new Error("學生紀錄格式不正確");
       return parsed;
