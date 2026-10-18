@@ -130,3 +130,13 @@
 .grade-level-table th:first-child,.grade-level-table td:first-child{padding-left:12px;width:55px}
 @media(max-width:900px){.grade-level-results{grid-template-columns:1fr}.grade-level-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:680px){.grade-level-panel{padding:17px}.grade-level-controls{grid-template-columns:1fr}.grade-level-class-row{grid-template-columns:1fr}.grade-level-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.grade-level-panel>.section-head{align-items:flex-start;flex-direction:column}}
+.roster-email-tools{display:flex;align-items:center;gap:10px;margin:15px 0 9px}
+.roster-email-paste{margin:0 0 16px;padding:15px;border:1px solid var(--line);border-radius:10px;background:#f8faf7}
+.roster-email-paste>p{color:var(--muted);font-size:12px;line-height:1.7;margin:0 0 10px}
+.roster-email-paste textarea{display:block;width:100%;min-height:120px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);resize:vertical;font-size:12px;line-height:1.6}
+.roster-email-paste>.button{margin-top:12px}
+.roster-email-preview{margin-top:12px;padding:11px 12px;border-radius:8px;background:#edf5ec;color:var(--green);font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+.roster-email-preview.has-errors{background:#fff2ed;color:var(--warning)}
+.roster-email-preview strong{display:block}
+.roster-email-preview ul{margin:5px 0 0;padding-left:20px}
+.roster-email-preview p{margin:5px 0 0}

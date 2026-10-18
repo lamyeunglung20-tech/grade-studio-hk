@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { analyze, analyzeGradeLevel, boundsForNewExam, compareExams, cumulativeGradeCounts, gradeConfig, LEVELS, moveExam, parseNames, parseScore, rankStudentRows, recordsForEmail, summarizeStudentExams, summarizeStudentRecords, validDocument, withoutClass, withoutExam } from "../lib/grade.ts";
+import { analyze, analyzeGradeLevel, boundsForNewExam, compareExams, cumulativeGradeCounts, gradeConfig, LEVELS, moveExam, parseNames, parseScore, previewEmailPaste, rankStudentRows, recordsForEmail, summarizeStudentExams, summarizeStudentRecords, validDocument, withoutClass, withoutExam } from "../lib/grade.ts";
 import { isAdmin, isStudent } from "../lib/access.ts";
 
 test("score parsing rejects out-of-range and malformed entries", () => {
@@ -56,6 +56,30 @@ test("student email links expose only that student's exam records", () => {
   assert.equal(recordsForEmail({ ...document, exams: [] }, "student@gmail.com").studentName, "陳同學");
   document.classes[0].students[1].email = "STUDENT@gmail.com";
   assert.equal(validDocument(document), false);
+});
+
+test("bulk Google email paste matches names safely and validates final ownership", () => {
+  const students = [
+    { id: "a", name: "陳同學", email: "old@example.com" },
+    { id: "b", name: "李同學" },
+    { id: "c", name: "黃同學", email: "keep@example.com" },
+  ];
+  const named = previewEmailPaste(students, "姓名\tGoogle 電郵\n李同學\tLEE@GMAIL.COM\n陳同學\tchen@gmail.com");
+  assert.equal(named.mode, "named");
+  assert.deepEqual(named.errors, []);
+  assert.deepEqual(named.updates.map(({ studentId, email }) => [studentId, email]), [["b", "lee@gmail.com"], ["a", "chen@gmail.com"]]);
+  assert.deepEqual(previewEmailPaste(students, "chen@gmail.com\nlee@gmail.com\n").errors.length, 1);
+  const ordered = previewEmailPaste(students, "chen@gmail.com\nlee@gmail.com\n\n");
+  assert.equal(ordered.mode, "ordered");
+  assert.equal(ordered.errors.length, 1); // A shortened list cannot silently shift addresses.
+  const complete = previewEmailPaste(students, "Google 電郵\nchen@gmail.com\nlee@gmail.com\nkeep@example.com");
+  assert.deepEqual(complete.errors, []);
+  assert.deepEqual(complete.updates.map(item => item.studentId), ["a", "b"]);
+  assert.equal(previewEmailPaste(students, "黃同學\told@example.com").errors.length, 1);
+  assert.equal(previewEmailPaste(students, "陌生學生\tx@gmail.com").errors.length, 1);
+  assert.equal(previewEmailPaste(students, "陳同學\tnot-an-email").errors.length, 1);
+  assert.equal(previewEmailPaste(students, "陳同學\ta@gmail.com\n陳同學\tb@gmail.com").errors.length, 1);
+  assert.deepEqual(students.map(student => student.email), ["old@example.com", undefined, "keep@example.com"]);
 });
 
 test("administrator access is tied to the specified authenticated email", () => {

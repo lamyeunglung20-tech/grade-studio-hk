@@ -233,3 +233,67 @@ export function recordsForEmail(document: Document, email: string) {
 export function parseNames(text: string) {
   return text.split(/\r?\n/).map(s => s.trim()).filter(Boolean).map(s => s.slice(0, 120));
 }
+
+export type EmailPasteUpdate = { studentId: string; name: string; email: string; previousEmail: string };
+
+export function previewEmailPaste(students: Student[], text: string): {
+  mode: "named" | "ordered" | null;
+  updates: EmailPasteUpdate[];
+  errors: string[];
+} {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+  if (!lines.length) return { mode: null, updates: [], errors: [] };
+
+  const named = lines.some(line => line.includes("\t"));
+  const mode = named ? "named" : "ordered";
+  const errors: string[] = [];
+  const updates: EmailPasteUpdate[] = [];
+  const hasHeader = named
+    ? /^(?:學生)?姓名\s*\t\s*(?:google\s*(?:account|電郵|帳戶)|電郵|email|e-mail)/i.test(lines[0])
+    : /^(?:google\s*(?:account|電郵|帳戶)|電郵|email|e-mail)$/i.test(lines[0].trim());
+  const candidates = hasHeader ? lines.slice(1) : lines;
+
+  if (!named && candidates.length !== students.length) {
+    return { mode, updates, errors: [`只貼電郵時，必須按名單順序貼上 ${students.length} 行；目前有 ${candidates.length} 行。若只更新部分學生，請貼上「姓名、電郵」兩欄。`] };
+  }
+
+  const seenNames = new Set<string>();
+  candidates.forEach((line, index) => {
+    if (!line.trim()) return;
+    let student: Student | undefined;
+    let rawEmail: string;
+    if (named) {
+      const cells = line.split("\t");
+      if (cells.length !== 2) { errors.push(`第 ${index + 1 + Number(hasHeader)} 行須為「姓名」和「Google 電郵」兩欄。`); return; }
+      const name = cells[0].trim();
+      if (!name) { errors.push(`第 ${index + 1 + Number(hasHeader)} 行缺少學生姓名。`); return; }
+      if (seenNames.has(name)) { errors.push(`「${name}」在貼上內容中重複。`); return; }
+      seenNames.add(name);
+      const matches = students.filter(item => item.name.trim() === name);
+      if (matches.length !== 1) { errors.push(matches.length ? `名單中有多位「${name}」，無法安全配對。` : `名單中找不到「${name}」。`); return; }
+      student = matches[0];
+      rawEmail = cells[1];
+    } else {
+      student = students[index];
+      rawEmail = line;
+    }
+    const email = normalizeEmail(rawEmail);
+    if (!email) return; // A blank cell leaves the existing address unchanged.
+    if (!validEmail(email)) { errors.push(`「${student.name}」的電郵格式不正確。`); return; }
+    const previousEmail = normalizeEmail(student.email);
+    if (email !== previousEmail) updates.push({ studentId: student.id, name: student.name, email, previousEmail });
+  });
+
+  const nextEmails = new Map(students.map(student => [student.id, normalizeEmail(student.email)]));
+  for (const update of updates) nextEmails.set(update.studentId, update.email);
+  const owners = new Map<string, string>();
+  for (const student of students) {
+    const email = nextEmails.get(student.id);
+    if (!email) continue;
+    const owner = owners.get(email);
+    if (owner) errors.push(`同一 Google 電郵不能同時配對「${owner}」和「${student.name}」。`);
+    else owners.set(email, student.name);
+  }
+  return { mode, updates, errors };
+}
