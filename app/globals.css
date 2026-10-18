@@ -140,3 +140,11 @@
 .roster-email-preview strong{display:block}
 .roster-email-preview ul{margin:5px 0 0;padding-left:20px}
 .roster-email-preview p{margin:5px 0 0}
+.score-paste-trigger{flex-shrink:0}
+.paste-block>p{font-size:12px;line-height:1.7}
+.score-paste-preview{margin-top:12px;padding:11px 12px;border-radius:8px;background:#edf5ec;color:var(--green);font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+.score-paste-preview.has-errors{background:#fff2ed;color:var(--warning)}
+.score-paste-preview strong{display:block}
+.score-paste-preview ul{margin:5px 0 0;padding-left:20px}
+.score-paste-preview p{margin:5px 0 0}
+@media(max-width:600px){.score-paste-trigger{width:100%}}

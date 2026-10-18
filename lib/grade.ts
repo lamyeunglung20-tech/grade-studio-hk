@@ -234,6 +234,58 @@ export function parseNames(text: string) {
   return text.split(/\r?\n/).map(s => s.trim()).filter(Boolean).map(s => s.slice(0, 120));
 }
 
+export type ScorePasteUpdate = { studentId: string; name: string; score: string; previousScore: string };
+
+export function previewScorePaste(students: Student[], scores: Record<string, string>, text: string): {
+  mode: "named" | "ordered" | null;
+  updates: ScorePasteUpdate[];
+  errors: string[];
+} {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+  if (!lines.length) return { mode: null, updates: [], errors: [] };
+
+  const named = lines.some(line => line.includes("\t"));
+  const mode = named ? "named" : "ordered";
+  const hasHeader = named
+    ? /^(?:學生)?姓名\s*\t\s*(?:成績|分數|score)$/i.test(lines[0].trim())
+    : /^(?:成績|分數|score)$/i.test(lines[0].trim());
+  const candidates = hasHeader ? lines.slice(1) : lines;
+  const errors: string[] = [];
+  const updates: ScorePasteUpdate[] = [];
+
+  const ordered = named ? candidates : candidates.flatMap(line => line.includes(",") || line.includes("，") ? line.split(/[,，]/) : [line]);
+  if (!named && ordered.length !== students.length) {
+    return { mode, updates, errors: [`只貼分數時，須按名單順序貼上全班 ${students.length} 行；目前有 ${ordered.length} 行。若只更新部分學生，請貼上「姓名、成績」兩欄。`] };
+  }
+
+  const seenNames = new Set<string>();
+  ordered.forEach((line, index) => {
+    let student: Student | undefined;
+    let rawScore: string;
+    if (named) {
+      const cells = line.split("\t");
+      if (cells.length !== 2) { errors.push(`第 ${index + 1 + Number(hasHeader)} 行須為「姓名」和「成績」兩欄。`); return; }
+      const name = cells[0].trim();
+      if (!name) { errors.push(`第 ${index + 1 + Number(hasHeader)} 行缺少學生姓名。`); return; }
+      if (seenNames.has(name)) { errors.push(`「${name}」在貼上內容中重複。`); return; }
+      seenNames.add(name);
+      const matches = students.filter(item => item.name.trim() === name);
+      if (matches.length !== 1) { errors.push(matches.length ? `名單中有多位「${name}」，無法安全配對。` : `名單中找不到「${name}」。`); return; }
+      student = matches[0];
+      rawScore = cells[1];
+    } else {
+      student = students[index];
+      rawScore = line;
+    }
+    const score = rawScore.trim();
+    if (score.length > 30 || parseScore(score).kind === "invalid") { errors.push(`「${student.name}」的分數無效；只接受 0–100、/ 或留空。`); return; }
+    const previousScore = scores[student.id] ?? "";
+    if (score !== previousScore) updates.push({ studentId: student.id, name: student.name, score, previousScore });
+  });
+  return { mode, updates, errors };
+}
+
 export type EmailPasteUpdate = { studentId: string; name: string; email: string; previousEmail: string };
 
 export function previewEmailPaste(students: Student[], text: string): {

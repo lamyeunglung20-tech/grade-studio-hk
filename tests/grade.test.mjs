@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { analyze, analyzeGradeLevel, boundsForNewExam, compareExams, cumulativeGradeCounts, gradeConfig, LEVELS, moveExam, parseNames, parseScore, previewEmailPaste, rankStudentRows, recordsForEmail, summarizeStudentExams, summarizeStudentRecords, validDocument, withoutClass, withoutExam } from "../lib/grade.ts";
+import { analyze, analyzeGradeLevel, boundsForNewExam, compareExams, cumulativeGradeCounts, gradeConfig, LEVELS, moveExam, parseNames, parseScore, previewEmailPaste, previewScorePaste, rankStudentRows, recordsForEmail, summarizeStudentExams, summarizeStudentRecords, validDocument, withoutClass, withoutExam } from "../lib/grade.ts";
 import { isAdmin, isStudent } from "../lib/access.ts";
 
 test("score parsing rejects out-of-range and malformed entries", () => {
@@ -80,6 +80,32 @@ test("bulk Google email paste matches names safely and validates final ownership
   assert.equal(previewEmailPaste(students, "陳同學\tnot-an-email").errors.length, 1);
   assert.equal(previewEmailPaste(students, "陳同學\ta@gmail.com\n陳同學\tb@gmail.com").errors.length, 1);
   assert.deepEqual(students.map(student => student.email), ["old@example.com", undefined, "keep@example.com"]);
+});
+
+test("bulk score paste matches named students, validates scores, and requires a complete ordered list", () => {
+  const students = [
+    { id: "a", name: "陳同學" },
+    { id: "b", name: "李同學" },
+    { id: "c", name: "黃同學" },
+  ];
+  const scores = { a: "50", b: "60", c: "70" };
+  const named = previewScorePaste(students, scores, "姓名\t成績\n李同學\t/\n陳同學\t85.5");
+  assert.equal(named.mode, "named");
+  assert.deepEqual(named.errors, []);
+  assert.deepEqual(named.updates.map(({ studentId, score }) => [studentId, score]), [["b", "/"], ["a", "85.5"]]);
+  const clearing = previewScorePaste(students, scores, "黃同學\t");
+  assert.deepEqual(clearing.errors, []);
+  assert.deepEqual(clearing.updates.map(({ studentId, score }) => [studentId, score]), [["c", ""]]);
+  const ordered = previewScorePaste(students, scores, "85\n\n/");
+  assert.equal(ordered.mode, "ordered");
+  assert.deepEqual(ordered.errors, []);
+  assert.deepEqual(ordered.updates.map(({ studentId, score }) => [studentId, score]), [["a", "85"], ["b", ""], ["c", "/"]]);
+  assert.equal(previewScorePaste(students, scores, "85\n90").errors.length, 1);
+  assert.equal(previewScorePaste(students, scores, "陌生學生\t85").errors.length, 1);
+  assert.equal(previewScorePaste(students, scores, "陳同學\t85\n陳同學\t90").errors.length, 1);
+  assert.equal(previewScorePaste(students, scores, "陳同學\t101").errors.length, 1);
+  assert.equal(previewScorePaste(students, scores, "陳同學\t-1").errors.length, 1);
+  assert.deepEqual(scores, { a: "50", b: "60", c: "70" });
 });
 
 test("administrator access is tied to the specified authenticated email", () => {
