@@ -3,7 +3,9 @@ export const CUMULATIVE_LEVELS = ["U", "1+", "2+", "3+", "4+", "5+", "5*+", "5**
 export type Student = { id: string; name: string; email?: string };
 export type ClassRoom = { id: string; name: string; students: Student[]; gradingDefault?: string[] };
 export type Exam = { id: string; classId: string; name: string; bounds: string[]; scores: Record<string, string> };
-export type Document = { classes: ClassRoom[]; exams: Exam[] };
+export type ScoreOrder = "roster" | "rank";
+export type GradeGroup = { id: string; name: string; classIds: string[]; examIds?: Record<string, string> };
+export type Document = { classes: ClassRoom[]; exams: Exam[]; scoreOrderDefault?: ScoreOrder; gradeGroups?: GradeGroup[] };
 export const EMPTY: Document = { classes: [], exams: [] };
 export const ADMIN_EMAIL = "admin@example.com";
 
@@ -73,7 +75,7 @@ export function analyze(klass: ClassRoom | undefined, exam: Exam | undefined) {
     at50: values.filter(v => v >= 50).length };
 }
 
-export function rankStudentRows(report: ReturnType<typeof analyze>) {
+export function rankStudentRows<T extends ReturnType<typeof analyze>["detail"][number]>(report: { detail: T[] }) {
   const sorted = report.detail.map((row, rosterIndex) => ({ row, rosterIndex })).sort((a, b) => {
     if (a.row.value === null) return b.row.value === null ? a.rosterIndex - b.rosterIndex : 1;
     if (b.row.value === null) return -1;
@@ -86,6 +88,29 @@ export function rankStudentRows(report: ReturnType<typeof analyze>) {
     previousScore = row.value;
     return { row, rank: currentRank };
   });
+}
+
+export function analyzeGradeLevel(document: Document, selections: { classId: string; examId: string }[]) {
+  const rows = selections.flatMap(({ classId, examId }) => {
+    const klass = document.classes.find(item => item.id === classId);
+    const exam = document.exams.find(item => item.id === examId && item.classId === classId);
+    if (!klass || !exam) return [];
+    return analyze(klass, exam).detail.map(row => ({ ...row, classId, className: klass.name, examName: exam.name }));
+  });
+  const valid = rows.filter((row): row is typeof row & { value: number } => row.value !== null);
+  const grades = LEVELS.map(level => valid.filter(row => row.grade === level).length);
+  return {
+    rows,
+    ranked: rankStudentRows({ detail: rows }),
+    students: rows.length,
+    count: valid.length,
+    absent: rows.filter(row => row.kind === "abs").length,
+    average: valid.length ? valid.reduce((sum, row) => sum + row.value, 0) / valid.length : null,
+    max: valid.length ? Math.max(...valid.map(row => row.value)) : null,
+    at50: valid.filter(row => row.value >= 50).length,
+    grades,
+    graded: grades.reduce((sum, count) => sum + count, 0),
+  };
 }
 
 export function compareExams(klass: ClassRoom | undefined, exams: Exam[]) {
@@ -124,11 +149,13 @@ export function summarizeStudentExams(klass: ClassRoom | undefined, exams: Exam[
 }
 
 export function withoutClass(document: Document, classId: string): Document {
-  return { classes: document.classes.filter(item => item.id !== classId), exams: document.exams.filter(item => item.classId !== classId) };
+  return { ...document, classes: document.classes.filter(item => item.id !== classId), exams: document.exams.filter(item => item.classId !== classId),
+    gradeGroups: document.gradeGroups?.map(group => ({ ...group, classIds: group.classIds.filter(id => id !== classId), examIds: Object.fromEntries(Object.entries(group.examIds ?? {}).filter(([id]) => id !== classId)) })).filter(group => group.classIds.length > 0) };
 }
 
 export function withoutExam(document: Document, examId: string): Document {
-  return { ...document, exams: document.exams.filter(item => item.id !== examId) };
+  return { ...document, exams: document.exams.filter(item => item.id !== examId),
+    gradeGroups: document.gradeGroups?.map(group => ({ ...group, examIds: Object.fromEntries(Object.entries(group.examIds ?? {}).filter(([, id]) => id !== examId)) })) };
 }
 
 export function moveExam(document: Document, examId: string, direction: -1 | 1): Document {
@@ -148,6 +175,7 @@ const isRecord = (x: unknown): x is Record<string, unknown> => !!x && typeof x =
 const isShort = (x: unknown, max: number): x is string => typeof x === "string" && x.length <= max;
 export function validDocument(input: unknown): input is Document {
   if (!isRecord(input) || !Array.isArray(input.classes) || !Array.isArray(input.exams) || input.classes.length > 100 || input.exams.length > 300) return false;
+  if (input.scoreOrderDefault !== undefined && input.scoreOrderDefault !== "roster" && input.scoreOrderDefault !== "rank") return false;
   const classIds = new Set<string>(), examIds = new Set<string>(), studentIds = new Set<string>();
   for (const klass of input.classes) {
     if (!isRecord(klass) || !isShort(klass.id, 80) || !klass.id || !isShort(klass.name, 100) || !klass.name.trim() || !Array.isArray(klass.students) || klass.students.length > 5000 || classIds.has(klass.id)) return false;
@@ -174,6 +202,20 @@ export function validDocument(input: unknown): input is Document {
     const allowed = new Set((input.classes as ClassRoom[]).find(k => k.id === exam.classId)!.students.map(s => s.id));
     const entries = Object.entries(exam.scores);
     if (entries.length > allowed.size || entries.some(([key, value]) => !allowed.has(key) || !isShort(value, 30))) return false;
+  }
+  if (input.gradeGroups !== undefined) {
+    if (!Array.isArray(input.gradeGroups) || input.gradeGroups.length > 30) return false;
+    const groupIds = new Set<string>();
+    for (const group of input.gradeGroups) {
+      if (!isRecord(group) || !isShort(group.id, 80) || !group.id || groupIds.has(group.id) || !isShort(group.name, 100) || !group.name.trim() || !Array.isArray(group.classIds) || group.classIds.length === 0 || group.classIds.length > 100 || group.classIds.some((id: unknown) => typeof id !== "string" || !classIds.has(id)) || new Set(group.classIds).size !== group.classIds.length) return false;
+      groupIds.add(group.id);
+      if (group.examIds !== undefined) {
+        if (!isRecord(group.examIds)) return false;
+        const selectedClassIds = group.classIds as string[];
+        const exams = input.exams as Exam[];
+        if (Object.entries(group.examIds).some(([classId, examId]) => !selectedClassIds.includes(classId) || !exams.some(exam => exam.id === examId && exam.classId === classId))) return false;
+      }
+    }
   }
   return true;
 }

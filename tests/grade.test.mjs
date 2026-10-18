@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { analyze, boundsForNewExam, compareExams, cumulativeGradeCounts, gradeConfig, LEVELS, moveExam, parseNames, parseScore, rankStudentRows, recordsForEmail, summarizeStudentExams, summarizeStudentRecords, validDocument, withoutClass, withoutExam } from "../lib/grade.ts";
+import { analyze, analyzeGradeLevel, boundsForNewExam, compareExams, cumulativeGradeCounts, gradeConfig, LEVELS, moveExam, parseNames, parseScore, rankStudentRows, recordsForEmail, summarizeStudentExams, summarizeStudentRecords, validDocument, withoutClass, withoutExam } from "../lib/grade.ts";
 import { isAdmin, isStudent } from "../lib/access.ts";
 
 test("score parsing rejects out-of-range and malformed entries", () => {
@@ -140,7 +140,7 @@ test("PDF ranking sorts valid scores and gives ties the same competition rank", 
 
 test("deleting an exam preserves its class and other exams; deleting a class removes only its own exams", () => {
   const bounds = ["0", "20", "30", "40", "50", "60", "70", "90"];
-  const document = { classes: [{ id: "a", name: "A", students: [] }, { id: "b", name: "B", students: [] }], exams: [
+  const document = { scoreOrderDefault: "rank", gradeGroups: [{ id: "g", name: "中五級", classIds: ["a", "b"], examIds: { a: "e1", b: "e3" } }], classes: [{ id: "a", name: "A", students: [] }, { id: "b", name: "B", students: [] }], exams: [
     { id: "e1", classId: "a", name: "甲", bounds, scores: {} },
     { id: "e2", classId: "a", name: "乙", bounds, scores: {} },
     { id: "e3", classId: "b", name: "丙", bounds, scores: {} },
@@ -148,7 +148,31 @@ test("deleting an exam preserves its class and other exams; deleting a class rem
   assert.deepEqual(withoutExam(document, "e1").exams.map(item => item.id), ["e2", "e3"]);
   assert.deepEqual(withoutClass(document, "a").exams.map(item => item.id), ["e3"]);
   assert.deepEqual(withoutClass(document, "a").classes.map(item => item.id), ["b"]);
+  assert.equal(withoutClass(document, "a").scoreOrderDefault, "rank");
+  assert.deepEqual(withoutClass(document, "a").gradeGroups[0].classIds, ["b"]);
+  assert.deepEqual(withoutExam(document, "e1").gradeGroups[0].examIds, { b: "e3" });
   assert.deepEqual(document.exams.map(item => item.id), ["e1", "e2", "e3"]);
+});
+
+test("grade-level results combine selected classes without counting absences in averages", () => {
+  const bounds = ["0", "20", "30", "40", "50", "60", "70", "90"];
+  const document = {
+    scoreOrderDefault: "rank",
+    gradeGroups: [{ id: "g", name: "中五級", classIds: ["a", "b"], examIds: { a: "e1", b: "e2" } }],
+    classes: [{ id: "a", name: "5A", students: [{ id: "s1", name: "甲" }, { id: "s2", name: "乙" }] }, { id: "b", name: "5B", students: [{ id: "s3", name: "丙" }, { id: "s4", name: "丁" }] }],
+    exams: [{ id: "e1", classId: "a", name: "Mock A", bounds, scores: { s1: "80", s2: "/" } }, { id: "e2", classId: "b", name: "Mock B", bounds, scores: { s3: "50", s4: "60" } }],
+  };
+  assert.equal(validDocument(document), true);
+  const result = analyzeGradeLevel(document, [{ classId: "a", examId: "e1" }, { classId: "b", examId: "e2" }]);
+  assert.equal(result.students, 4);
+  assert.equal(result.count, 3);
+  assert.equal(result.absent, 1);
+  assert.equal(result.average, 190 / 3);
+  assert.equal(result.at50, 3);
+  assert.deepEqual(result.ranked.map(({ row, rank }) => [row.student.name, rank]), [["甲", 1], ["丁", 2], ["丙", 3], ["乙", null]]);
+  assert.deepEqual(result.grades, [0, 0, 0, 0, 1, 1, 1, 0]);
+  assert.equal(validDocument({ ...document, scoreOrderDefault: "other" }), false);
+  assert.equal(validDocument({ ...document, gradeGroups: [{ ...document.gradeGroups[0], examIds: { a: "e2" } }] }), false);
 });
 
 test("class roster is reusable across exams and isolated from other classes", () => {

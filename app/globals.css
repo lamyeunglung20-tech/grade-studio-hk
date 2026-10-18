@@ -100,3 +100,33 @@
 @media(max-width:680px){.student-analysis-controls,.student-analysis-summary{grid-template-columns:1fr}}
 .scores-panel th:first-child,.scores-panel td:first-child{width:58px;min-width:58px}
 .score-heading{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.score-heading select{border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--green);font-size:11px;padding:7px 9px;min-height:32px}.scores-panel>.section-head{flex-wrap:wrap}
+.score-default-button{border:1px solid #c8dac9;border-radius:7px;background:#edf5ec;color:var(--green);font-size:11px;font-weight:700;min-height:32px;padding:6px 10px}
+.score-default-label{color:var(--muted);font-size:11px}
+.grade-level-panel{padding:22px;margin-bottom:18px}
+.grade-level-hint{color:var(--muted);font-size:11px;line-height:1.7}
+.grade-level-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px;max-width:760px}
+.grade-level-controls input,.grade-level-controls select,.grade-level-class-row select{display:block;width:100%;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);padding:9px 11px;min-height:40px;font-size:12px}
+.grade-level-controls input,.grade-level-controls select{margin-top:7px}
+.grade-level-class-list{display:grid;gap:8px;margin:17px 0}
+.grade-level-class-row{display:grid;grid-template-columns:minmax(180px,1fr) minmax(200px,1.3fr);align-items:center;gap:12px;max-width:760px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:#fbfcfa}
+.grade-level-class-row label{display:flex;align-items:center;gap:9px;font-size:12px;min-width:0;cursor:pointer}
+.grade-level-class-row input{accent-color:var(--green)}
+.grade-level-class-row label span{overflow-wrap:anywhere}
+.grade-level-actions{display:flex;align-items:center;flex-wrap:wrap;gap:9px}
+.grade-level-actions span,.grade-level-message{color:var(--muted);font-size:11px}
+.grade-level-message{margin:12px 0 0;color:var(--green)}
+.grade-level-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;margin:20px 0 12px}
+.grade-level-metrics>div{padding:15px;border:1px solid var(--line);border-radius:9px;background:#f8faf7;min-width:0}
+.grade-level-metrics span,.grade-level-metrics small{display:block;color:var(--muted);font-size:10px}
+.grade-level-metrics strong{display:block;margin-top:8px;font-size:22px;color:var(--green)}
+.grade-level-metrics strong small{display:inline;font-size:11px;font-weight:400}
+.grade-level-results{display:grid;grid-template-columns:minmax(250px,.8fr) minmax(0,1.2fr);gap:24px;margin-top:23px}
+.grade-level-results>section{min-width:0}
+.grade-level-results h3{font-size:15px;margin:0 0 14px}
+.grade-level-results .cumulative-grades h3{font-size:13px;margin:0 0 5px}
+.grade-level-results .bar-list{margin-top:0}
+.grade-level-table{max-height:440px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+.grade-level-table table{min-width:610px}
+.grade-level-table th:first-child,.grade-level-table td:first-child{padding-left:12px;width:55px}
+@media(max-width:900px){.grade-level-results{grid-template-columns:1fr}.grade-level-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:680px){.grade-level-panel{padding:17px}.grade-level-controls{grid-template-columns:1fr}.grade-level-class-row{grid-template-columns:1fr}.grade-level-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.grade-level-panel>.section-head{align-items:flex-start;flex-direction:column}}
